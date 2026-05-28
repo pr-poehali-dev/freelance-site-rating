@@ -1,6 +1,24 @@
 import { useState } from "react";
 import Icon from "@/components/ui/icon";
 
+type Review = {
+  id: number;
+  freelancerId: number;
+  author: string;
+  avatar: string;
+  rating: number;
+  text: string;
+  date: string;
+  project: string;
+};
+
+const INITIAL_REVIEWS: Review[] = [
+  { id: 1, freelancerId: 1, author: "Сергей К.", avatar: "СК", rating: 5, text: "Алексей сделал потрясающий дизайн для нашего приложения. Всё точно в срок, никаких лишних правок.", date: "12 мая 2024", project: "Редизайн мобильного приложения" },
+  { id: 2, freelancerId: 1, author: "Ольга М.", avatar: "ОМ", rating: 5, text: "Работали уже второй раз, снова доволен результатом. Профессионал своего дела.", date: "3 апреля 2024", project: "Брендинг стартапа" },
+  { id: 3, freelancerId: 2, author: "Антон Р.", avatar: "АР", rating: 5, text: "Мария — лучший frontend-разработчик из тех, с кем я работал. Код чистый, производительность отличная.", date: "20 мая 2024", project: "Корпоративный сайт" },
+  { id: 4, freelancerId: 3, author: "Виктор Н.", avatar: "ВН", rating: 4, text: "Дмитрий отлично справился с задачей, хотя пришлось немного подождать с финальной сдачей.", date: "8 мая 2024", project: "API для интернет-магазина" },
+];
+
 const FREELANCERS = [
   {
     id: 1,
@@ -122,7 +140,193 @@ function StarRating({ rating }: { rating: number }) {
   );
 }
 
-function FreelancerCard({ f }: { f: typeof FREELANCERS[0] }) {
+function StarPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const [hovered, setHovered] = useState(0);
+  return (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map((s) => (
+        <button
+          key={s}
+          type="button"
+          onClick={() => onChange(s)}
+          onMouseEnter={() => setHovered(s)}
+          onMouseLeave={() => setHovered(0)}
+          className="text-2xl transition-all duration-100"
+          style={{ color: s <= (hovered || value) ? "#fbbf24" : "rgba(255,255,255,0.15)", filter: s <= (hovered || value) ? "drop-shadow(0 0 6px rgba(251,191,36,0.7))" : "none" }}
+        >★</button>
+      ))}
+    </div>
+  );
+}
+
+function ReviewModal({
+  freelancer,
+  reviews,
+  onClose,
+  onSubmit,
+}: {
+  freelancer: typeof FREELANCERS[0];
+  reviews: Review[];
+  onClose: () => void;
+  onSubmit: (r: Omit<Review, "id">) => void;
+}) {
+  const [tab, setTab] = useState<"list" | "form">("list");
+  const [rating, setRating] = useState(5);
+  const [author, setAuthor] = useState("");
+  const [project, setProject] = useState("");
+  const [text, setText] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  const myReviews = reviews.filter(r => r.freelancerId === freelancer.id);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!author.trim() || !text.trim()) return;
+    onSubmit({
+      freelancerId: freelancer.id,
+      author: author.trim(),
+      avatar: author.trim().split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2),
+      rating,
+      text: text.trim(),
+      date: new Date().toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }),
+      project: project.trim() || "Без названия",
+    });
+    setSubmitted(true);
+    setTimeout(() => { setSubmitted(false); setTab("list"); setAuthor(""); setText(""); setProject(""); setRating(5); }, 1800);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="w-full max-w-lg glass rounded-3xl overflow-hidden animate-fade-in"
+        style={{ border: "1px solid rgba(168,85,247,0.2)" }}>
+        {/* Header */}
+        <div className="p-6 border-b border-white/5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${freelancer.color} flex items-center justify-center font-bold text-white text-sm`}>
+              {freelancer.avatar}
+            </div>
+            <div>
+              <h3 className="font-montserrat font-bold text-white">{freelancer.name}</h3>
+              <p className="text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>{freelancer.role}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl transition-all hover:bg-white/10">
+            <Icon name="X" size={18} className="text-gray-400" />
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-white/5">
+          {[
+            { key: "list", label: `Отзывы (${myReviews.length})` },
+            { key: "form", label: "Написать отзыв" },
+          ].map(t => (
+            <button key={t.key} onClick={() => setTab(t.key as "list" | "form")}
+              className={`flex-1 py-3 text-sm font-semibold transition-all ${tab === t.key ? "text-purple-400 border-b-2 border-purple-500" : "text-gray-500 hover:text-gray-300"}`}
+              style={{ marginBottom: "-1px" }}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="p-6 max-h-[60vh] overflow-y-auto">
+          {tab === "list" && (
+            <div className="flex flex-col gap-4">
+              {myReviews.length === 0 ? (
+                <div className="text-center py-10">
+                  <Icon name="MessageSquare" size={36} className="mx-auto mb-3 text-gray-700" />
+                  <p className="text-gray-500">Отзывов пока нет</p>
+                  <button onClick={() => setTab("form")} className="mt-3 text-purple-400 text-sm hover:text-purple-300 transition-colors">
+                    Стать первым →
+                  </button>
+                </div>
+              ) : myReviews.map(review => (
+                <div key={review.id} className="glass rounded-2xl p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white"
+                        style={{ background: "linear-gradient(135deg, #7c3aed, #06b6d4)" }}>
+                        {review.avatar}
+                      </div>
+                      <div>
+                        <p className="text-white text-sm font-semibold">{review.author}</p>
+                        <p className="text-[11px]" style={{ color: "hsl(var(--muted-foreground))" }}>{review.date}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-0.5 star-rating text-sm">
+                      {[1,2,3,4,5].map(s => (
+                        <span key={s} style={{ opacity: s <= review.rating ? 1 : 0.2 }}>★</span>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-sm text-white/80 mb-2">{review.text}</p>
+                  <p className="text-xs px-2.5 py-1 rounded-full inline-block"
+                    style={{ background: "rgba(6,182,212,0.1)", color: "#06b6d4", border: "1px solid rgba(6,182,212,0.2)" }}>
+                    {review.project}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {tab === "form" && (
+            submitted ? (
+              <div className="text-center py-12 animate-fade-in">
+                <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center"
+                  style={{ background: "rgba(34,197,94,0.15)" }}>
+                  <Icon name="CheckCircle" size={32} className="text-green-400" />
+                </div>
+                <h4 className="font-montserrat font-bold text-white text-lg mb-1">Отзыв опубликован!</h4>
+                <p className="text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>Спасибо за обратную связь</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                <div>
+                  <label className="text-xs font-semibold mb-2 block" style={{ color: "hsl(var(--muted-foreground))" }}>ОЦЕНКА</label>
+                  <StarPicker value={rating} onChange={setRating} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold mb-2 block" style={{ color: "hsl(var(--muted-foreground))" }}>ВАШЕ ИМЯ</label>
+                  <input value={author} onChange={e => setAuthor(e.target.value)} required
+                    placeholder="Иван Петров"
+                    className="w-full glass rounded-xl px-4 py-3 text-white placeholder-gray-600 outline-none text-sm transition-all focus:border-purple-500/50"
+                    style={{ border: "1px solid rgba(255,255,255,0.08)" }} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold mb-2 block" style={{ color: "hsl(var(--muted-foreground))" }}>НАЗВАНИЕ ПРОЕКТА <span className="opacity-50">(необязательно)</span></label>
+                  <input value={project} onChange={e => setProject(e.target.value)}
+                    placeholder="Разработка лендинга"
+                    className="w-full glass rounded-xl px-4 py-3 text-white placeholder-gray-600 outline-none text-sm transition-all focus:border-purple-500/50"
+                    style={{ border: "1px solid rgba(255,255,255,0.08)" }} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold mb-2 block" style={{ color: "hsl(var(--muted-foreground))" }}>ОТЗЫВ</label>
+                  <textarea value={text} onChange={e => setText(e.target.value)} required rows={4}
+                    placeholder="Расскажите о своём опыте работы..."
+                    className="w-full glass rounded-xl px-4 py-3 text-white placeholder-gray-600 outline-none text-sm resize-none transition-all focus:border-purple-500/50"
+                    style={{ border: "1px solid rgba(255,255,255,0.08)" }} />
+                </div>
+                <button type="submit" className="btn-gradient py-3 rounded-xl font-semibold text-sm relative z-10 w-full">
+                  Опубликовать отзыв
+                </button>
+              </form>
+            )
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FreelancerCard({ f, reviews, onReviewClick }: { f: typeof FREELANCERS[0]; reviews: Review[]; onReviewClick: () => void }) {
+  const myReviews = reviews.filter(r => r.freelancerId === f.id);
+  const totalReviews = f.reviews + myReviews.length;
+  const totalRating = myReviews.length > 0
+    ? ((f.rating * f.reviews + myReviews.reduce((s, r) => s + r.rating, 0)) / totalReviews).toFixed(1)
+    : f.rating.toFixed(1);
+
   return (
     <div className="glass-hover rounded-2xl p-5 cursor-pointer animate-fade-in">
       <div className="flex items-start justify-between mb-4">
@@ -145,9 +349,14 @@ function FreelancerCard({ f }: { f: typeof FREELANCERS[0] }) {
       </div>
 
       <div className="flex items-center gap-2 mb-3">
-        <StarRating rating={f.rating} />
-        <span className="text-white font-semibold text-sm">{f.rating}</span>
-        <span className="text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>({f.reviews} отзывов)</span>
+        <StarRating rating={parseFloat(totalRating)} />
+        <span className="text-white font-semibold text-sm">{totalRating}</span>
+        <button
+          onClick={(e) => { e.stopPropagation(); onReviewClick(); }}
+          className="text-xs transition-colors hover:text-purple-300"
+          style={{ color: "hsl(var(--muted-foreground))" }}>
+          ({totalReviews} отзывов)
+        </button>
       </div>
 
       <div className="flex flex-wrap gap-1.5 mb-4">
@@ -159,9 +368,17 @@ function FreelancerCard({ f }: { f: typeof FREELANCERS[0] }) {
           <p className="text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>от</p>
           <p className="font-montserrat font-bold text-white">{f.hourlyRate.toLocaleString()} ₽<span className="text-xs font-normal" style={{ color: "hsl(var(--muted-foreground))" }}>/час</span></p>
         </div>
-        <button className="btn-gradient text-xs px-4 py-2 rounded-xl font-semibold relative z-10">
-          Связаться
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={(e) => { e.stopPropagation(); onReviewClick(); }}
+            className="btn-outline-glow text-xs px-3 py-2 rounded-xl font-semibold flex items-center gap-1">
+            <Icon name="Star" size={12} fallback="Circle" />
+            Отзыв
+          </button>
+          <button className="btn-gradient text-xs px-4 py-2 rounded-xl font-semibold relative z-10">
+            Связаться
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -173,6 +390,12 @@ export default function Index() {
   const [searchQuery, setSearchQuery] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeChat, setActiveChat] = useState<number | null>(1);
+  const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
+  const [reviewModal, setReviewModal] = useState<typeof FREELANCERS[0] | null>(null);
+
+  const handleAddReview = (r: Omit<Review, "id">) => {
+    setReviews(prev => [...prev, { ...r, id: Date.now() }]);
+  };
 
   const filteredFreelancers = FREELANCERS.filter((f) => {
     const matchesSearch = f.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -326,7 +549,7 @@ export default function Index() {
                   </button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {FREELANCERS.slice(0, 3).map((f) => <FreelancerCard key={f.id} f={f} />)}
+                  {FREELANCERS.slice(0, 3).map((f) => <FreelancerCard key={f.id} f={f} reviews={reviews} onReviewClick={() => setReviewModal(f)} />)}
                 </div>
               </div>
             </section>
@@ -430,7 +653,7 @@ export default function Index() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {filteredFreelancers.length > 0
-                ? filteredFreelancers.map((f) => <FreelancerCard key={f.id} f={f} />)
+                ? filteredFreelancers.map((f) => <FreelancerCard key={f.id} f={f} reviews={reviews} onReviewClick={() => setReviewModal(f)} />)
                 : (
                   <div className="col-span-3 text-center py-20">
                     <Icon name="SearchX" size={48} className="mx-auto mb-4 text-gray-600" />
@@ -701,6 +924,15 @@ export default function Index() {
           </div>
         )}
       </div>
+
+      {reviewModal && (
+        <ReviewModal
+          freelancer={reviewModal}
+          reviews={reviews}
+          onClose={() => setReviewModal(null)}
+          onSubmit={handleAddReview}
+        />
+      )}
 
       <footer className="border-t border-white/5 py-10 mt-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
